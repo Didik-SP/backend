@@ -78,42 +78,49 @@ app.post("/get-snap-token", async (req, res) => {
 
 // ---------------- MIDTRANS CALLBACK -----------------
 app.post("/midtrans-callback", async (req, res) => {
-  const notif = req.body;
-  console.log("📩 Callback diterima:", notif);
-  const orderId = notif.order_id;
-  const status = notif.transaction_status;
-  const fraud = notif.fraud_status;
-  let statusPembayaran = "belum bayar";
-  // ======== STATUS SUKSES =========
-  if (status === "settlement" || (status === "capture" && fraud === "accept")) {
-    statusPembayaran = "sudah dp";
-  }
-  // ======== PENDING ===============
-  else if (status === "pending") {
-    statusPembayaran = "menunggu pembayaran";
-  }
-  // ======== GAGAL ==================
-  else if (status === "deny" || status === "expire" || status === "cancel") {
-    statusPembayaran = "gagal";
-  }
   try {
-    // CARI DOKUMEN Firestore BERDASARKAN bookingId order_id
+    const notif = req.body;
+    console.log("📩 Callback diterima:", notif);
+
+    const orderId = notif.order_id;
+    const status = notif.transaction_status;
+    const fraud = notif.fraud_status;
+
+    let statusPembayaran = "belum bayar";
+
+    if (
+      status === "settlement" ||
+      (status === "capture" && fraud === "accept")
+    ) {
+      statusPembayaran = "sudah dp";
+    } else if (status === "pending") {
+      statusPembayaran = "menunggu pembayaran";
+    } else if (["deny", "expire", "cancel"].includes(status)) {
+      statusPembayaran = "gagal";
+    }
+
+    // 🔎 cari transaksi berdasarkan bookingId
     const transaksiRef = db.collection("transaksi");
     const snap = await transaksiRef.where("bookingId", "==", orderId).get();
+
     if (snap.empty) {
-      console.log("❌ dokumen tidak ditemukan:", orderId);
-      return res.status(404).json({ message: "Dokumen tidak ditemukan" });
+      console.log("❌ Dokumen tidak ditemukan:", orderId);
+      return res.status(200).send("OK"); // ← Midtrans HARUS dapat 200, meskipun gagal
     }
-    snap.forEach(async (doc) => {
+
+    // update dokumen
+    for (const doc of snap.docs) {
       await transaksiRef.doc(doc.id).update({
         statusPembayaran: statusPembayaran,
       });
-      console.log("✔ Firestore updated:", doc.id);
-    });
-    return res.status(200).json({ message: "Callback processed" });
+
+      console.log("✔ Firestore updated:", doc.id, statusPembayaran);
+    }
+
+    return res.status(200).send("OK");
   } catch (err) {
     console.error("🔥 Error update firestore:", err);
-    return res.status(500).json({ error: err.message });
+    return res.status(200).send("OK");
   }
 });
 // ----------------------------------------------------
