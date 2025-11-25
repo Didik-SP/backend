@@ -123,34 +123,25 @@ async function sendUserPaymentConfirmation(userPhone, transactionData) {
     if (formattedPhone.startsWith("0")) {
       formattedPhone = "62" + formattedPhone.substring(1);
     }
-
     const { namaLengkap, tanggalBooking, tema, tempat, hargaDP, hargaTotal } =
       transactionData;
-
-    // Format pesan untuk user
     const message = `
 ✅ *PEMBAYARAN DP BERHASIL!*
-
 Terima kasih, ${namaLengkap}!
 Pembayaran DP Anda telah kami terima.
-
 📋 *Detail Booking:*
 ━━━━━━━━━━━━━━━━━━━━
 📅 Tanggal: ${tanggalBooking}
 🎭 Tema: ${tema}
 📍 Tempat: ${tempat}
-
 💰 *Detail Pembayaran:*
 ━━━━━━━━━━━━━━━━━━━━
 ✅ DP Dibayar: Rp ${hargaDP.toLocaleString("id-ID")}
 💸 Total Booking: Rp ${hargaTotal.toLocaleString("id-ID")}
 💰 Sisa Pelunasan: Rp ${(hargaTotal - hargaDP).toLocaleString("id-ID")}
-
 Tim kami akan menghubungi Anda untuk konfirmasi lebih lanjut.
-
 Terima kasih telah menggunakan layanan Dina Griya Rias! 🙏
 `.trim();
-
     const response = await axios.post(
       FONNTE_API_URL,
       new URLSearchParams({
@@ -165,7 +156,6 @@ Terima kasih telah menggunakan layanan Dina Griya Rias! 🙏
         },
       }
     );
-
     if (response.status === 200) {
       console.log("✅ Konfirmasi pembayaran dikirim ke user:", formattedPhone);
       return true;
@@ -218,47 +208,38 @@ app.post("/midtrans-callback", async (req, res) => {
   try {
     const notif = req.body;
     console.log("📩 Callback diterima:", notif);
-
     const orderId = notif.order_id;
     const status = notif.transaction_status;
     const fraud = notif.fraud_status;
-
     let statusPembayaran = "belum bayar";
     let isPaymentSuccess = false;
-
     if (
       status === "settlement" ||
       (status === "capture" && fraud === "accept")
     ) {
-      statusPembayaran = "sudah dp";
+      statusPembayaran = "selesai";
       isPaymentSuccess = true;
     } else if (status === "pending") {
       statusPembayaran = "menunggu pembayaran";
     } else if (["deny", "expire", "cancel"].includes(status)) {
       statusPembayaran = "gagal";
     }
-
     // 🔎 cari transaksi berdasarkan bookingId
     const transaksiRef = db.collection("transaksi");
     const snap = await transaksiRef.where("bookingId", "==", orderId).get();
-
     if (snap.empty) {
       console.log("❌ Dokumen tidak ditemukan:", orderId);
       return res.status(200).send("OK"); // ← Midtrans HARUS dapat 200, meskipun gagal
     }
-
     // update dokumen
     for (const doc of snap.docs) {
       await transaksiRef.doc(doc.id).update({
         statusPembayaran: statusPembayaran,
       });
-
       console.log("✅ Firestore updated:", doc.id, statusPembayaran);
-
       // 🔔 KIRIM NOTIFIKASI WA JIKA PEMBAYARAN BERHASIL
       if (isPaymentSuccess) {
         const transactionData = doc.data();
-
         // Ambil data user dari collection users
         let userPhone = null;
         if (transactionData.userId) {
@@ -274,7 +255,6 @@ app.post("/midtrans-callback", async (req, res) => {
             console.error("Error getting user data:", error);
           }
         }
-
         // Data lengkap untuk notifikasi
         const notificationData = {
           bookingId: transactionData.bookingId || orderId,
@@ -287,12 +267,10 @@ app.post("/midtrans-callback", async (req, res) => {
           statusPembayaran: statusPembayaran,
           userPhone: userPhone,
         };
-
         // Kirim notifikasi ke admin (fire-and-forget)
         sendAdminNotification(notificationData).catch((err) =>
           console.error("Error sending admin notification:", err)
         );
-
         // Kirim konfirmasi ke user (fire-and-forget)
         if (userPhone) {
           sendUserPaymentConfirmation(userPhone, notificationData).catch(
@@ -301,7 +279,6 @@ app.post("/midtrans-callback", async (req, res) => {
         }
       }
     }
-
     return res.status(200).send("OK");
   } catch (err) {
     console.error("🔥 Error update firestore:", err);
