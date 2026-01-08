@@ -43,7 +43,7 @@ const MIDTRANS_BASE_URL =
   "https://app.sandbox.midtrans.com/snap/v1/transactions";
 
 // API Key WhatsApp Fonnte
-const FONNTE_API_KEY = "V6HUVKJDCtsZga1Y45gf";
+const FONNTE_API_KEY = "diYa3hVukHmTeKrZ98Zx";
 const FONNTE_API_URL = "https://api.fonnte.com/send";
 const ADMIN_PHONE = "62853332494472"; // Format internasional
 
